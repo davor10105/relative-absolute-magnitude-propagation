@@ -1,5 +1,6 @@
 from base import *
 from timm_modules import *
+from huggingface_modules import *
 
 
 class TimmVGG16(FFModule):
@@ -130,3 +131,34 @@ class TimmVisionTransformer(FFModule):
         #prel = normalize_prel(prel).detach()
         
         return prel#, prel_prepatch
+
+
+class RAMPDistilBertForSequenceClassification(FFModule):
+    def __init__(self, model):
+        super().__init__()
+        
+        self.distilbert = HFDistilBert(model.distilbert)
+        self.choose_token = FFChooseToken()
+        self.pre_classifier = TimmLinear(model.pre_classifier)
+        self.act = TimmReLU(nn.ReLU())
+        self.dropout = model.dropout
+        self.classifier = TimmLinear(model.classifier)
+    
+    def forward(self, input_ids, attention_mask):
+        h = self.distilbert(input_ids=input_ids, attention_mask=attention_mask)
+        h = self.choose_token(h)
+        h = self.pre_classifier(h)
+        h = self.act(h)
+        h = self.dropout(h)
+        h = self.classifier(h)
+        
+        return h
+    
+    def backward_prel(self, prel, rule):
+        prel = self.classifier.backward_prel(prel, rule)
+        prel = self.act.backward_prel(prel, rule)
+        prel = self.pre_classifier.backward_prel(prel, rule)
+        prel = self.choose_token.backward_prel(prel, rule)
+        prel = self.distilbert.backward_prel(prel, rule)
+        
+        return prel
