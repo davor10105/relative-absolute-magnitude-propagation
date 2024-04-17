@@ -1,4 +1,7 @@
 import torch
+import matplotlib.pyplot as plt
+from torchvision.transforms.functional import pil_to_tensor
+import torchvision.transforms as T
 
 
 @torch.no_grad()
@@ -43,3 +46,42 @@ def scale_relevance_with_output(r, o, chosen_index):
     r = r.view(r_shape)
     
     return r
+
+@torch.no_grad()
+def norm_image(x, is_vit=False):
+    mean = torch.tensor([0.485, 0.456, 0.406])
+    std = torch.tensor([0.229, 0.224, 0.225])
+    if is_vit:
+        mean = torch.tensor([0.5, 0.5, 0.5])
+        std = torch.tensor([0.5, 0.5, 0.5])
+    x = ((x * std + mean) * 255).int()
+    
+    return x
+
+def preprocess_pil_image(image, is_vit=False):
+    image = pil_to_tensor(image) / 255
+    transforms = T.Compose([
+        T.Resize(size=(256, 256), antialias=True),
+        T.CenterCrop(size=(224, 224)),
+        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) if not is_vit else T.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+    ])
+    image = transforms(image)
+    return image
+
+def visualize_tensor_relevance_batch(x, r, is_vit=False):
+    num_images = x.shape[0]
+    x, r = x.detach().cpu(), normalize_prel(r.detach().cpu()).sum(1)
+    fig, axs = plt.subplots(num_images, 2)
+    for i, (xx, rr) in enumerate(zip(x, r)):
+        xx = norm_image(xx.permute(1, 2, 0), is_vit=is_vit)
+        if num_images > 1:
+            axs[i, 0].imshow(xx)
+            axs[i, 1].imshow(rr, cmap='seismic', vmin=-1, vmax=1)
+            axs[i, 0].axis('off')
+            axs[i, 1].axis('off')
+        else:
+            axs[0].imshow(xx)
+            axs[1].imshow(rr, cmap='seismic', vmin=-1, vmax=1)
+            axs[0].axis('off')
+            axs[1].axis('off')
+    plt.show()

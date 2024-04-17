@@ -1,6 +1,6 @@
-from base import *
-from timm_modules import *
-from huggingface_modules import *
+from ramp_gae.ramp.base import *
+from ramp_gae.ramp.timm_modules import *
+from ramp_gae.ramp.huggingface_modules import *
 
 
 class TimmVGG16(FFModule):
@@ -11,10 +11,10 @@ class TimmVGG16(FFModule):
         self.pre_logits = TimmPreLogits(module.pre_logits, module.drop_rate)
         self.head = TimmHead(module.head)
         
-    def forward(self, x, p_ind=None):
+    def forward(self, x):
         x = self.features(x)
         x = self.pre_logits(x)
-        x = self.head(x, p_ind=p_ind)
+        x = self.head(x)
         
         return x
     

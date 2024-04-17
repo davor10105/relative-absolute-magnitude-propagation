@@ -1,4 +1,4 @@
-from base import *
+from ramp_gae.ramp.base import *
 import timm
 import copy
 
@@ -65,9 +65,9 @@ class TimmHead(FFModule):
         self.global_pool = TimmSelectAdaptivePool2d(module.global_pool)
         self.fc = TimmLinear(module.fc)
     
-    def forward(self, x, p_ind=None):
+    def forward(self, x):
         x = self.global_pool(x)
-        x = self.fc(x, p_ind=p_ind)
+        x = self.fc(x)
         
         return x
     
@@ -475,21 +475,6 @@ class TimmMaxPool2d(FFModule):
             rel = torch.autograd.grad(ha, x, prel * h_sign)[0] * x
             #rel = torch.autograd.grad(ha, x, prel * h_sign / (h + h_eta))[0] * x
         if rule == 'intline':
-            rel = torch.autograd.grad(ha + h * h_sign, x, prel)[0] * x
-            #rel = torch.autograd.grad(ha + h, x, prel * h_sign / (h + h_eta))[0] * x
-            """rel_pos = torch.autograd.grad(ha + h, x, prel.clamp(min=0), retain_graph=True)[0] * x
-            rel_neg = torch.autograd.grad(ha + h, x, prel.clamp(max=0))[0] * x
-            
-            prel_pos = prel.flatten(1).clamp(min=0).sum(-1)
-            prel_neg = prel.flatten(1).clamp(max=0).sum(-1)
-            num_dims = len(prel.shape[1:])
-            for _ in range(num_dims):
-                prel_pos = prel_pos.unsqueeze(-1)
-                prel_neg = prel_neg.unsqueeze(-1)
-            
-            rel = prel_pos * normalize_abs_sum_to_one(rel_pos) + prel_neg.abs() * normalize_abs_sum_to_one(rel_neg)
-            """
-        if rule == 'intline':
             rel = new_intline_rule(ha, h, x, prel, divide=True)
         
         self.x, self.h, self.ha = None, None, None
@@ -520,9 +505,6 @@ class TimmSelectAdaptivePool2d(FFModule):
         if rule == 'intfill':
             rel = torch.autograd.grad(ha, x, prel * h_sign)[0] * x
             #rel = torch.autograd.grad(ha, x, prel * h_sign / (h + h_eta))[0] * x
-        if rule == 'intline':
-            #rel = torch.autograd.grad(ha + h * h_sign, x, prel)[0] * x
-            rel = torch.autograd.grad(ha + h * h_sign / (h + h_eta), x, prel)[0] * x
         if rule == 'intline':
             rel = new_intline_rule(ha, h, x, prel, divide=True)
         

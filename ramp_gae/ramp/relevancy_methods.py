@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 from ramp_gae.utils import normalize_abs_sum_to_one, scale_relevance_with_output
+from ramp_gae.ramp.models import TimmVisionTransformer
 
 
 def rescale_relevance(r):
@@ -43,11 +44,14 @@ class RelevancyMethod():
         
         return o
 
-    def relevancy(self, x, scale_with_output=False):
+    def relevancy(self, x, choose_max=False, scale_with_output=False):
         x = x.to(self.device).detach()
         x.requires_grad = True
         
         o = self.model_pass(x)
+        
+        if choose_max:
+            self.chosen_index = o.max(-1)[1]
         
         r = self.relevancy_type_dict[self.relevancy_type](x, output=o).detach().cpu()
         o = o.detach().cpu()
@@ -78,6 +82,24 @@ class IntRelevancyMethod(RelevancyMethod):
         prel = prel.to(self.device)
         
         r = self.model.backward_prel(prel, self.rule)
+        #r = r.abs()
+        """o = kwargs['output']
+        
+        prel_pos = torch.zeros_like(o, device=self.device)
+        prel_pos[torch.arange(o.shape[0]), self.chosen_index.to(self.device)] = 1.
+        prel_neg = -torch.ones_like(o, device=self.device)
+        prel_neg[torch.arange(o.shape[0]), self.chosen_index.to(self.device)] = 0.
+        
+        r = self.model.backward_prel(prel_pos, self.rule)
+        
+        o = self.model(x)
+        r_neg = self.model.backward_prel(prel_neg, self.rule)
+        
+        r = normalize_abs_sum_to_one(r) + normalize_abs_sum_to_one(r_neg)
+        
+        #r = r.abs()
+        r = r.relu()"""
+        
         self.model.zero_grad()
         
         return r
@@ -99,8 +121,7 @@ class IntRelevancyMethod(RelevancyMethod):
         
         r = normalize_abs_sum_to_one(r) + normalize_abs_sum_to_one(r_neg)
         
-        if self.posneg:
-            r = r.relu()
+        r = r.relu()
         
         self.model.zero_grad()
         
@@ -109,84 +130,64 @@ class IntRelevancyMethod(RelevancyMethod):
     def contrastive_relevancy_method(self, x, **kwargs):
         o = kwargs['output']
         
-        if self.contrastive_method == 'difference':
+        """prel_pos = torch.zeros_like(o)
+        prel_pos[torch.arange(o.shape[0]), self.chosen_index] = 1.
+        prel_neg = - torch.ones_like(o, device=self.device)
+        #prel_neg = - o.softmax(-1)
+        prel_neg[torch.arange(o.shape[0]), self.chosen_index] = 0.
         
-            prel_pos = torch.zeros_like(o)
-            prel_pos[torch.arange(o.shape[0]), self.chosen_index] = 1.
-            prel_neg = torch.ones_like(o)#- o.softmax(-1)
-            prel_neg[torch.arange(o.shape[0]), self.chosen_index] = 0.
-
-            prel_pos = prel_pos.to(self.device)
-            prel_neg = prel_neg.to(self.device)
-
-            r = self.model.backward_prel(prel_pos, self.rule)
-
-            self.model.zero_grad()
-
-            o = self.model(x)#, p_ind=self.chosen_index.to(self.device))
-            #prel_neg = -torch.ones_like(o)
-            r_neg = self.model.backward_prel(prel_neg, self.rule)
-
-            #r = normalize_abs_sum_to_one(r) + normalize_abs_sum_to_one(normalize_abs_sum_to_one(r) - normalize_abs_sum_to_one(r_neg))
-            r = normalize_abs_sum_to_one(r) - normalize_abs_sum_to_one(r_neg)
-        elif self.contrastive_method == 'difference_o':
+        prel_pos = prel_pos.to(self.device)
+        prel_neg = prel_neg.to(self.device)
+        #prel_neg = torch.ones_like(o, device=self.device)
+        #prel_neg[torch.arange(o.shape[0]), self.chosen_index.to(self.device)] = 0.
         
-            prel_pos = torch.zeros_like(o)
-            prel_pos[torch.arange(o.shape[0]), self.chosen_index] = 1.
-            prel_neg = o
-            prel_neg[torch.arange(o.shape[0]), self.chosen_index] = 0.
-
-            prel_pos = prel_pos.to(self.device)
-            prel_neg = prel_neg.to(self.device)
-            #prel_neg = torch.ones_like(o, device=self.device)
-            #prel_neg[torch.arange(o.shape[0]), self.chosen_index.to(self.device)] = 0.
-
-            #prel = torch.zeros_like(o, device=o.device)
-            #prel[torch.arange(o.shape[0]), self.chosen_index.to(self.device)] = 1.
-            #prel = prel.to(self.device)
-
-            r = self.model.backward_prel(prel_pos, self.rule)
-
-            self.model.zero_grad()
-
-            o = self.model(x)#, p_ind=self.chosen_index.to(self.device))
-            #prel_neg = -torch.ones_like(o)
-            r_neg = self.model.backward_prel(prel_neg, self.rule)
-
-            #r = normalize_abs_sum_to_one(r) + normalize_abs_sum_to_one(normalize_abs_sum_to_one(r) - normalize_abs_sum_to_one(r_neg))
-            r = normalize_abs_sum_to_one(r) - normalize_abs_sum_to_one(r_neg)
+        #prel = torch.zeros_like(o, device=o.device)
+        #prel[torch.arange(o.shape[0]), self.chosen_index.to(self.device)] = 1.
+        #prel = prel.to(self.device)
         
-        elif self.contrastive_method == 'difference_softmax':
+        r = self.model.backward_prel(prel_pos, self.rule)
         
-            prel_pos = torch.zeros_like(o)
-            prel_pos[torch.arange(o.shape[0]), self.chosen_index] = 1.
-            prel_neg = o.softmax(-1)
-            prel_neg[torch.arange(o.shape[0]), self.chosen_index] = 0.
-
-            prel_pos = prel_pos.to(self.device)
-            prel_neg = prel_neg.to(self.device)
-            #prel_neg = torch.ones_like(o, device=self.device)
-            #prel_neg[torch.arange(o.shape[0]), self.chosen_index.to(self.device)] = 0.
-
-            #prel = torch.zeros_like(o, device=o.device)
-            #prel[torch.arange(o.shape[0]), self.chosen_index.to(self.device)] = 1.
-            #prel = prel.to(self.device)
-
-            r = self.model.backward_prel(prel_pos, self.rule)
-
-            self.model.zero_grad()
-
-            o = self.model(x)#, p_ind=self.chosen_index.to(self.device))
-            #prel_neg = -torch.ones_like(o)
-            r_neg = self.model.backward_prel(prel_neg, self.rule)
-
-            #r = normalize_abs_sum_to_one(r) + normalize_abs_sum_to_one(normalize_abs_sum_to_one(r) - normalize_abs_sum_to_one(r_neg))
-            r = normalize_abs_sum_to_one(r) - normalize_abs_sum_to_one(r_neg)
+        self.model.zero_grad()
+        
+        o = self.model(x)#, p_ind=self.chosen_index.to(self.device))
+        #prel_neg = -torch.ones_like(o)
+        r_neg = self.model.backward_prel(prel_neg, self.rule)
+        
+        #r = normalize_abs_sum_to_one(r) + normalize_abs_sum_to_one(normalize_abs_sum_to_one(r) - normalize_abs_sum_to_one(r_neg))
+        r = normalize_abs_sum_to_one(r) + normalize_abs_sum_to_one(r_neg)"""
         
         #r = r.abs()
-        elif self.contrastive_method == 'single_pass':
-            prel_pos = 1.001 * F.one_hot(self.chosen_index.to(self.device), num_classes=o.shape[-1]).to(o.device) - torch.ones_like(o) / 1000
+        if self.rule == 'intline':
+            if isinstance(self.model, TimmVisionTransformer):
+                prel_pos = torch.zeros_like(o)
+                prel_pos[torch.arange(o.shape[0]), self.chosen_index] = 1.
+                prel_neg = torch.ones_like(o)#- o.softmax(-1)
+                prel_neg[torch.arange(o.shape[0]), self.chosen_index] = 0.
+
+                prel_pos = prel_pos.to(self.device)
+                prel_neg = prel_neg.to(self.device)
+
+                r = self.model.backward_prel(prel_pos, self.rule)
+
+                self.model.zero_grad()
+
+                o = self.model(x)
+                r_neg = self.model.backward_prel(prel_neg, self.rule)
+                r = normalize_abs_sum_to_one(r) - normalize_abs_sum_to_one(r_neg)
+            else:
+                prel_pos = 1.001 * F.one_hot(self.chosen_index.to(self.device), num_classes=o.shape[-1]).to(o.device) - torch.ones_like(o) / 1000
+                r = self.model.backward_prel(prel_pos, self.rule)
+        elif self.rule == 'intfill':
+            prel_pos = torch.zeros_like(o)
+            prel_pos[torch.arange(o.shape[0]), self.chosen_index] = 1.
+            prel_neg = torch.ones_like(o, device=self.device)
+            prel_neg[torch.arange(o.shape[0]), self.chosen_index] = 0.
+            
             r = self.model.backward_prel(prel_pos, self.rule)
+            self.model.zero_grad()
+            o = self.model(x)
+            r_neg = self.model.backward_prel(prel_neg, self.rule)
+            r = normalize_abs_sum_to_one(r) + normalize_abs_sum_to_one(r_neg)
         
         if self.posneg:
             r = r.relu()

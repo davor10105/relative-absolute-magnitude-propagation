@@ -1,6 +1,6 @@
 import math
-from base import *
-from timm_modules import *
+from ramp_gae.ramp.base import *
+from ramp_gae.ramp.timm_modules import *
 
 
 class HFFeedForward(FFModule):
