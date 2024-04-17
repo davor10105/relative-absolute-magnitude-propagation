@@ -82,3 +82,27 @@ Plot the results
 ```
 metric.plot_results()
 ```
+
+### Citation
+Please use the following BibText entry to cite our work:
+```
+@article{10.1145/3649458,
+author = {Vukadin, Davor and Afri\'{c}, Petar and \v{S}ili\'{c}, Marin and Dela\v{c}, Goran},
+title = {Advancing Attribution-Based Neural Network Explainability through Relative Absolute Magnitude Layer-Wise Relevance Propagation and Multi-Component Evaluation},
+year = {2024},
+issue_date = {June 2024},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {15},
+number = {3},
+issn = {2157-6904},
+url = {https://doi.org/10.1145/3649458},
+doi = {10.1145/3649458},
+abstract = {Recent advancement in deep-neural network performance led to the development of new state-of-the-art approaches in numerous areas. However, the black-box nature of neural networks often prohibits their use in areas where model explainability and model transparency are crucial. Over the years, researchers proposed many algorithms to aid neural network understanding and provide additional information to the human expert. One of the most popular methods being Layer-Wise Relevance Propagation (LRP). This method assigns local relevance based on the pixel-wise decomposition of nonlinear classifiers. With the rise of attribution method research, there has emerged a pressing need to assess and evaluate their performance. Numerous metrics have been proposed, each assessing an individual property of attribution methods such as faithfulness, robustness, or localization. Unfortunately, no single metric is deemed optimal for every case, and researchers often use several metrics to test the quality of the attribution maps. In this work, we address the shortcomings of the current LRP formulations and introduce a novel method for determining the relevance of input neurons through layer-wise relevance propagation. Furthermore, we apply this approach to the recently developed Vision Transformer architecture and evaluate its performance against existing methods on two image classification datasets, namely ImageNet and PascalVOC. Our results clearly demonstrate the advantage of our proposed method. Furthermore, we discuss the insufficiencies of current evaluation metrics for attribution-based explainability and propose a new evaluation metric that combines the notions of faithfulness, robustness, and contrastiveness. We utilize this new metric to evaluate the performance of various attribution-based methods. Our code is available at:},
+journal = {ACM Trans. Intell. Syst. Technol.},
+month = {apr},
+articleno = {47},
+numpages = {30},
+keywords = {Explainable artificial intelligence, Vision Transformer, layer-wise relevance propagation, attribution-based evaluation}
+}
+```
