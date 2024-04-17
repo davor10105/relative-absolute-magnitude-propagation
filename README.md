@@ -57,3 +57,28 @@ x = image.unsqueeze(0)
 r, _, _ = relevancy_method.relevancy(x, choose_max=True)
 visualize_tensor_relevance_batch(x, r, is_vit=is_vit)
 ```
+
+#### Global Evaluation Metric
+Import the required libraries
+```
+from ramp_gae.gae.gae import GlobalEvaluationMetric, IndexReturnDataset
+```
+Wrap your dataset inside IndexReturnDataset
+```
+test_loader = DataLoader(IndexReturnDataset(dataset), batch_size=4, shuffle=True)
+```
+Define a dictionary of relevancy methods (key - method name, value - relevancy method) to evaluate.
+In this case, our RAMP method from the example above:
+```
+relevancy_methods = {
+    'ramp': relevancy_method,
+}
+```
+Run the metric
+```
+metric.run()
+```
+Plot the results
+```
+metric.plot_results()
+```
