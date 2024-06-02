@@ -1,0 +1,46 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: >-
+  Advancing Attribution-Based Explainability through
+  Multi-Component Evaluation and Relative Absolute Magnitude
+  Propagation
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Davor Vukadin
+    email: davor.vukadin@fer.hr
+    affiliation: >-
+      Faculty of Electrical Engineering and Computing,
+      University of Zagreb
+    orcid: 'https://orcid.org/0000-0003-3309-6718'
+identifiers:
+  - type: doi
+    value: 10.1145/3649458
+repository-code: >-
+  https://github.com/davor10105/relative-absolute-magnitude-propagation
+abstract: >-
+  A novel Layer-Wise Propagation rule, referred to as
+  Relative Absolute Magnitude Propagation (RAMP). This rule
+  effectively addresses the issue of incorrect relative
+  attribution between neurons within the same layer that
+  exhibit varying absolute magnitude activations. We apply
+  this rule to three different, including the very recent
+  Vision Transformer.
+
+  A new evaluation method, Global Attribution Evaluation
+  (GAE), which offers a novel perspective on evaluating
+  faithfulness and robustness of an attribution method by
+  utilizing gradient-based masking, while combining those
+  results with a localization method to achieve a
+  comprehensive evaluation of explanation quality in a
+  single score.
+keywords:
+  - xai
+  - transformer
+  - evaluation metric
+license: Apache-2.0
+date-released: '2024-04-15'
