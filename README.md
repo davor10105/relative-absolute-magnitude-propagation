@@ -1,6 +1,6 @@
 # Advancing Attribution-Based Explainability through Multi-Component Evaluation and Relative Absolute Magnitude Propagation
 
-This repository contains the source code for the new __Relative Absolute Magnitude Propagation__ attribution method and the __Global Evaluation Metric__
+This repository contains the source code for the new __Relative Absolute Magnitude Propagation__ attribution method and the __Global Evaluation Metric__ described in the paper https://dl.acm.org/doi/10.1145/3649458 .
 
 ## Relative Absolute Magnitude Propagation
 
