@@ -22,7 +22,7 @@ A new evaluation method, Global Attribution Evaluation (GAE), which offers a nov
 ### Usage Example
 #### Relative Absolute Magnitude Propagation
 Import the required libraries
-```
+```python
 import torch
 from torchvision.transforms.functional import pil_to_tensor
 import torchvision.transforms as T
@@ -33,7 +33,7 @@ from ramp_gae.ramp.relevancy_methods import IntRelevancyMethod
 from ramp_gae.utils import preprocess_pil_image, visualize_tensor_relevance_batch
 ```
 Load a model from timm and wrap it inside the RAMP class
-```
+```python
 device = 'cuda'
 # model = timm.create_model('vgg16', pretrained=True)
 # ramp_model = TimmVGG16(model)
@@ -47,12 +47,12 @@ is_vit = isinstance(ramp_model, TimmVisionTransformer)
 relevancy_method = IntRelevancyMethod(ramp_model, rule='intline', relevancy_type='contrastive', device=device)
 ```
 Load an inference image and preprocess
-```
+```python
 image = Image.open(image_path)
 image = preprocess_pil_image(image, is_vit=is_vit)
 ```
 Calculate contrastive relevance using RAMP and visualize
-```
+```python
 x = image.unsqueeze(0)
 r, _, _ = relevancy_method.relevancy(x, choose_max=True)
 visualize_tensor_relevance_batch(x, r, is_vit=is_vit)
@@ -60,26 +60,26 @@ visualize_tensor_relevance_batch(x, r, is_vit=is_vit)
 
 #### Global Evaluation Metric
 Import the required libraries
-```
+```python
 from ramp_gae.gae.gae import GlobalEvaluationMetric, IndexReturnDataset
 ```
 Wrap your dataset inside IndexReturnDataset
-```
+```python
 test_loader = DataLoader(IndexReturnDataset(dataset), batch_size=4, shuffle=True)
 ```
 Define a dictionary of relevancy methods (key - method name, value - relevancy method) to evaluate.
 In this case, our RAMP method from the example above:
-```
+```python
 relevancy_methods = {
     'ramp': relevancy_method,
 }
 ```
 Run the metric
-```
+```python
 metric.run()
 ```
 Plot the results
-```
+```python
 metric.plot_results()
 ```
 
