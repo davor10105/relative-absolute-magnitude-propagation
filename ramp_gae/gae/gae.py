@@ -217,7 +217,6 @@ class GlobalEvaluationMetric:
                 results[method_name]["contrastiveness"].append(contrastiveness)
                 results[method_name]["gae"].append(gae_score)
 
-            break
         results = {
             method_name: {
                 "local_consistency": torch.cat(values["local_consistency"]),

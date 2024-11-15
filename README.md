@@ -45,7 +45,7 @@ ramp_model = TimmVisionTransformer(model)
 ramp_model.to(device)
 ramp_model.eval()
 is_vit = isinstance(ramp_model, TimmVisionTransformer)
-relevancy_method = IntRelevancyMethod(ramp_model, rule='intline', relevancy_type='contrastive', device=device)
+relevancy_method = IntRelevancyMethod(model=ramp_model, device=device)
 ```
 Load an inference image and preprocess
 ```python
@@ -55,18 +55,14 @@ image = preprocess_pil_image(image, is_vit=is_vit)
 Calculate contrastive relevance using RAMP and visualize
 ```python
 x = image.unsqueeze(0)
-r, _, _ = relevancy_method.relevancy(x, choose_max=True)
+r, _, _ = relevancy_method.relevancy(x)
 visualize_tensor_relevance_batch(x, r, is_vit=is_vit)
 ```
 
 #### Global Evaluation Metric
 Import the required libraries
 ```python
-from ramp_gae.gae.gae import GlobalEvaluationMetric, IndexReturnDataset
-```
-Wrap your dataset inside IndexReturnDataset
-```python
-test_loader = DataLoader(IndexReturnDataset(dataset), batch_size=4, shuffle=True)
+from ramp_gae.gae.gae import GlobalEvaluationMetric
 ```
 Define a dictionary of relevancy methods (key - method name, value - relevancy method) to evaluate.
 In this case, our RAMP method from the example above:
@@ -77,11 +73,16 @@ relevancy_methods = {
 ```
 Run the metric
 ```python
-metric.run()
+metric.run(
+    relevancy_methods=relevancy_methods,
+    model=ramp_model,
+    dataset=dataset,
+    batch_size=16,
+    )
 ```
 Plot the results
 ```python
-metric.plot_results()
+metric.plot()
 ```
 
 ### Citation
