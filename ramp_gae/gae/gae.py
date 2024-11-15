@@ -5,11 +5,8 @@ from torch import nn
 from enum import Enum
 import matplotlib.pyplot as plt
 from typing import Optional
-
-
-class RelevancyMethod:
-    def relevancy(self, x: torch.tensor, y: torch.tensor) -> torch.tensor:
-        return torch.randn_like(x).abs()
+from ramp_gae.ramp.relevancy_methods import RelevancyMethod
+from ramp_gae.utils import normalize_relevance, NormalizationType
 
 
 class MaskOrder(Enum):
@@ -17,28 +14,11 @@ class MaskOrder(Enum):
     LERF = "lerf"
 
 
-class NormalizationType(Enum):
-    SUM_TO_ONE = "abs"
-    MAX_TO_ONE = "max"
-
-
 class GlobalEvaluationMetric:
     def __init__(self, num_masking_steps: int = 10, device: str = "cuda"):
         self.num_masking_steps = num_masking_steps
         self.device = device
         self.results = {}
-
-    @torch.no_grad()
-    def _normalize_relevance(self, relevance: torch.tensor, normalization_type: NormalizationType) -> torch.tensor:
-        shape = relevance.shape
-        relevance = relevance.flatten(1)
-        if normalization_type == NormalizationType.SUM_TO_ONE:
-            relevance = relevance / (relevance.abs().sum(-1, keepdim=True) + 1e-9)
-        else:
-            relevance = relevance / (relevance.abs().max(-1, keepdim=True)[0] + 1e-9)
-        relevance = relevance.view(*shape)
-
-        return relevance
 
     @torch.no_grad()
     def _dice_loss(self, t1: torch.tensor, t2: torch.tensor) -> torch.tensor:
@@ -165,11 +145,9 @@ class GlobalEvaluationMetric:
             summed_morf_r = torch.stack(morf_r, dim=0).sum(0)
             summed_lerf_r = torch.stack(lerf_r, dim=0).sum(0)
 
-            combined_impact_map = self._normalize_relevance(
-                relevance=self._normalize_relevance(
-                    relevance=summed_lerf_r, normalization_type=NormalizationType.SUM_TO_ONE
-                )
-                - self._normalize_relevance(relevance=summed_morf_r, normalization_type=NormalizationType.SUM_TO_ONE),
+            combined_impact_map = normalize_relevance(
+                relevance=normalize_relevance(relevance=summed_lerf_r, normalization_type=NormalizationType.SUM_TO_ONE)
+                - normalize_relevance(relevance=summed_morf_r, normalization_type=NormalizationType.SUM_TO_ONE),
                 normalization_type=NormalizationType.MAX_TO_ONE,
             ).sign()
 
@@ -199,9 +177,9 @@ class GlobalEvaluationMetric:
             # calculate GAE for each method
             for method_name, relevancy_method in relevancy_methods.items():
                 # get positive relevance maps
-                relevance = relevancy_method.relevancy(x=positive_x, y=positive_y).detach().cpu()
+                relevance = relevancy_method.relevancy(x=positive_x, y=positive_y).relu().detach().cpu()
                 # get mosaic relevance map
-                mosaic_relevance = relevancy_method.relevancy(x=x_mosaic, y=positive_y).detach().cpu()
+                mosaic_relevance = relevancy_method.relevancy(x=x_mosaic, y=positive_y).relu().detach().cpu()
 
                 # calculate step-wise differences
                 relevance_diffs, output_diffs = [], []
@@ -209,9 +187,10 @@ class GlobalEvaluationMetric:
                 for step_morf_x, step_lerf_x, step_morf_o, step_lerf_o in zip(
                     morf_x[1:], lerf_x[1:], morf_o[1:], lerf_o[1:]
                 ):
-                    step_morf_r, step_lerf_r = relevancy_method.relevancy(
-                        x=step_morf_x, y=positive_y
-                    ), relevancy_method.relevancy(x=step_lerf_x, y=positive_y)
+                    step_morf_r, step_lerf_r = (
+                        relevancy_method.relevancy(x=step_morf_x, y=positive_y).relu(),
+                        relevancy_method.relevancy(x=step_lerf_x, y=positive_y).relu(),
+                    )
                     relevance_diff = self._dice_loss(relevance, step_lerf_r) - self._dice_loss(relevance, step_morf_r)
                     output_diff = step_lerf_o / (initial_output + 1e-9) - step_morf_o / (initial_output + 1e-9)
                     relevance_diffs.append(relevance_diff)
