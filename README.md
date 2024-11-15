@@ -55,7 +55,7 @@ image = preprocess_pil_image(image, is_vit=is_vit)
 Calculate contrastive relevance using RAMP and visualize
 ```python
 x = image.unsqueeze(0)
-r, _, _ = relevancy_method.relevancy(x)
+r = relevancy_method.relevancy(x)
 visualize_tensor_relevance_batch(x, r, is_vit=is_vit)
 ```
 
