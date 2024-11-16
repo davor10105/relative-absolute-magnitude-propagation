@@ -1,6 +1,5 @@
-numpy<2
-torch==1.13.1
-timm==0.4.12
-einops==0.6.0
-tqdm==4.64.1
-matplotlib==3.9.2
+torch
+timm
+einops
+tqdm
+matplotlib
