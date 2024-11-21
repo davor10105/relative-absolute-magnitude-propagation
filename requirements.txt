@@ -3,3 +3,4 @@ timm
 einops
 tqdm
 matplotlib
+pydantic==2.10.0
