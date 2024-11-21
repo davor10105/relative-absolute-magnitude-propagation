@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from torchvision.transforms.functional import pil_to_tensor
 import torchvision.transforms as T
 from enum import Enum
+from typing import Optional
 
 
 class NormalizationType(Enum):
@@ -11,13 +12,19 @@ class NormalizationType(Enum):
 
 
 @torch.no_grad()
-def normalize_relevance(relevance: torch.tensor, normalization_type: NormalizationType) -> torch.tensor:
+def normalize_relevance(
+    relevance: torch.tensor, normalization_type: NormalizationType, output_factor: Optional[torch.tensor] = None
+) -> torch.tensor:
     shape = relevance.shape
     relevance = relevance.flatten(1)
+    # normalize using the chosen mode
     if normalization_type == NormalizationType.SUM_TO_ONE:
         relevance = relevance / (relevance.abs().sum(-1, keepdim=True) + 1e-9)
     else:
         relevance = relevance / (relevance.abs().max(-1, keepdim=True)[0] + 1e-9)
+    # scale relevance
+    if output_factor is not None:
+        relevance = relevance * output_factor
     relevance = relevance.view(*shape)
 
     return relevance
