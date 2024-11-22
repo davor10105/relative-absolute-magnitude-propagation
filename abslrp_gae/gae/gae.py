@@ -5,8 +5,8 @@ from torch import nn
 from enum import Enum
 import matplotlib.pyplot as plt
 from typing import Optional
-from ramp_gae.ramp.relevancy_methods import RelevancyMethod
-from ramp_gae.utils import normalize_relevance, NormalizationType
+from abslrp_gae.abslrp.relevancy_methods import RelevancyMethod
+from abslrp_gae.utils import normalize_relevance, NormalizationType
 
 
 class MaskOrder(Enum):
