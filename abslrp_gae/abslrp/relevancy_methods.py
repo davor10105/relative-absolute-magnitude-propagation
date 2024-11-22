@@ -13,7 +13,7 @@ class RelevancyMethod:
     def relevancy(self, x: torch.tensor, y: Optional[torch.tensor] = None) -> torch.tensor:
         relevance = self._generate_relevancy(x=x, y=y)
         # make sure to return normalized relevance
-        return normalize_relevance(relevance=relevance, normalization_type=NormalizationType.MAX_TO_ONE)
+        return normalize_relevance(relevance=relevance.detach().cpu(), normalization_type=NormalizationType.MAX_TO_ONE)
 
     def _generate_relevancy(self, x: torch.tensor, y: Optional[torch.tensor]) -> torch.tensor:
         raise NotImplementedError("relevancy method needs to be implemented")
