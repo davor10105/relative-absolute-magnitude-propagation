@@ -1,78 +1,100 @@
-# Advancing Attribution-Based Explainability through Multi-Component Evaluation and Relative Absolute Magnitude Propagation
-## Visualize Vision Transformer attribution maps and more! 
+<p align="center">
+<img src="images/abslrp_logo_final.png" alt="abslrp_logo" height="120px"/> 
+</p>
 
-This repository contains the source code for the new __Relative Absolute Magnitude Propagation__ attribution method and the __Global Evaluation Metric__ described in the paper https://dl.acm.org/doi/10.1145/3649458 .
+<center>
+<h1>Advancing Attribution-Based Explainability through Multi-Component Evaluation and Relative Absolute Magnitude Propagation</h1>
+</center>
 
-## Relative Absolute Magnitude Propagation
+## 🤖 Visualize Vision Transformer attribution maps and more!
 
-A novel Layer-Wise Propagation rule, referred to as Relative Absolute Magnitude Propagation (RAMP). This rule effectively addresses the issue of incorrect relative attribution between neurons within the same layer that exhibit varying absolute magnitude activations. We apply this rule to three different, including the very recent Vision Transformer.
+This repository contains the source code for the new __Absolute Magnitude Layer-Wise Relevance Propagation__ attribution method and the __Global Evaluation Metric__ described in the paper https://dl.acm.org/doi/10.1145/3649458 .
 
-![Alt text](images/image-1.png)
-*Figure 1. RAMP visualizations for VGG architecture - ImageNet*
+## 🔎 Absolute Magnitude Layer-Wise Relevance Propagation
+
+A novel Layer-Wise Propagation rule, referred to as **Abs**olute Magnitude **L**ayer-Wise **R**elevance **P**ropagation (__absLRP__). This rule effectively addresses the issue of incorrect relative attribution between neurons within the same layer that exhibit varying absolute magnitude activations. We apply this rule to three different architectures, including the very recent Vision Transformer.
 
 ![Alt text](images/image-2.png)
-*Figure 2. RAMP visualizations for Vision Transformer architecture - PascalVOC*
+*Figure 1. absLRP visualizations for Vision Transformer architecture - PascalVOC*
 
-## Global Evaluation Metric
+![Alt text](images/image-1.png)
+*Figure 2. absLRP visualizations for VGG architecture - ImageNet*
+
+### 🔬 Usage
+<details>
+<summary>Import required modules</summary>
+
+```python
+import torch
+from abslrp_gae.abslrp.rules.models import VGGAbsLRPRule, ResNetAbsLRPRule, VisionTransformerAbsLRPRule
+from abslrp_gae.abslrp.relevancy_methods import AbsLRPRelevancyMethod
+from abslrp_gae.utils import preprocess_image, visualize_batch
+import timm
+from timm.models.vision_transformer import VisionTransformer
+from PIL import Image
+```
+
+</details>
+
+Load a model from **timm** and apply the **absLRP** rule:
+```python
+# load the model
+device = "cuda"
+model = timm.create_model("vit_base_patch16_224", pretrained=True)
+# model = timm.create_model("vgg16", pretrained=True)
+# model = timm.create_model("resnet50", pretrained=True)
+model.eval()
+model.to(device)
+
+# apply the absLRP rule to the model
+VisionTransformerAbsLRPRule().apply(model)
+# VGGAbsLRPRule().apply(model)
+# ResNetAbsLRPRule().apply(model)
+```
+Load inference images and preprocess:
+```python
+is_vit = isinstance(model, VisionTransformer)
+x = torch.stack(
+    [
+        preprocess_image(Image.open("images/dog_cat.jpeg"), is_vit),
+        preprocess_image(Image.open("images/hedgehog.jpg"), is_vit),
+    ]
+)
+```
+Calculate contrastive relevance using absLRP and visualize:
+```python
+relevancy_method = AbsLRPRelevancyMethod(model, device)
+relevance = relevancy_method.relevancy(x)
+visualize_batch(x, relevance, is_vit)
+```
+<center>
+
+![Usage absLRP example output](images/example_image.png)
+
+</center>
+
+## 📊 Global Evaluation Metric
 
 A new evaluation method, Global Attribution Evaluation (GAE), which offers a novel perspective on evaluating faithfulness and robustness of an attribution method by utilizing gradient-based masking, while combining those results with a localization method to achieve a comprehensive evaluation of explanation quality in a single score.
 
 ![Alt text](images/image-4.png)
-*Figure 3. Top and bottom 5 scoring images on GAE metric out of a randomly sampled 1024 images - RAMP VGG ImageNet*
+*Figure 3. Top and bottom 5 scoring images on GAE metric out of a randomly sampled 1024 images - absLRP VGG ImageNet*
 
-### Usage Example
-#### Relative Absolute Magnitude Propagation
+### 🔬 Usage
+
 Import the required libraries
 ```python
-import torch
-from torchvision.transforms.functional import pil_to_tensor
-import torchvision.transforms as T
-from PIL import Image
-import timm
-from ramp_gae.ramp.models import TimmVGG16, TimmResNet, TimmVisionTransformer
-from ramp_gae.ramp.relevancy_methods import IntRelevancyMethod
-from ramp_gae.utils import preprocess_pil_image, visualize_tensor_relevance_batch
+from abslrp_gae.gae.gae import GlobalEvaluationMetric
 ```
-Load a model from timm and wrap it inside the RAMP class
-```python
-device = 'cuda'
-# model = timm.create_model('vgg16', pretrained=True)
-# ramp_model = TimmVGG16(model)
-# model = timm.create_model('resnet50', pretrained=True)
-# ramp_model = TimmResNet(model)
-model = timm.create_model('vit_base_patch16_224', pretrained=True)
-ramp_model = TimmVisionTransformer(model)
-ramp_model.to(device)
-ramp_model.eval()
-is_vit = isinstance(ramp_model, TimmVisionTransformer)
-relevancy_method = IntRelevancyMethod(model=ramp_model, device=device)
-```
-Load an inference image and preprocess
-```python
-image = Image.open(image_path)
-image = preprocess_pil_image(image, is_vit=is_vit)
-```
-Calculate contrastive relevance using RAMP and visualize
-```python
-x = image.unsqueeze(0)
-r = relevancy_method.relevancy(x)
-visualize_tensor_relevance_batch(x, r, is_vit=is_vit)
-```
-
-#### Global Evaluation Metric
-Import the required libraries
-```python
-from ramp_gae.gae.gae import GlobalEvaluationMetric
-```
-Define a dictionary of relevancy methods (key - method name, value - relevancy method) to evaluate.
-In this case, our RAMP method from the example above:
+Define a dictionary of relevancy methods:
 ```python
 relevancy_methods = {
-    'ramp': relevancy_method,
+    "abslrp": relevancy_method,
 }
 ```
 Run the metric
 ```python
+metric = GlobalEvaluationMetric()
 metric.run(
     relevancy_methods=relevancy_methods,
     model=ramp_model,
@@ -85,9 +107,12 @@ Plot the results
 metric.plot()
 ```
 
-### Citation
+## 📞 Contact
+[![LinkedIn](https://img.shields.io/badge/linkedin-%230077B5.svg?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/davor-vukadin-596aaa1b7/)
+
+## 🔗 Citation
 Please use the following BibText entry to cite our work:
-```
+```bibtex
 @article{10.1145/3649458,
 author = {Vukadin, Davor and Afri\'{c}, Petar and \v{S}ili\'{c}, Marin and Dela\v{c}, Goran},
 title = {Advancing Attribution-Based Neural Network Explainability through Relative Absolute Magnitude Layer-Wise Relevance Propagation and Multi-Component Evaluation},
@@ -100,7 +125,6 @@ number = {3},
 issn = {2157-6904},
 url = {https://doi.org/10.1145/3649458},
 doi = {10.1145/3649458},
-abstract = {Recent advancement in deep-neural network performance led to the development of new state-of-the-art approaches in numerous areas. However, the black-box nature of neural networks often prohibits their use in areas where model explainability and model transparency are crucial. Over the years, researchers proposed many algorithms to aid neural network understanding and provide additional information to the human expert. One of the most popular methods being Layer-Wise Relevance Propagation (LRP). This method assigns local relevance based on the pixel-wise decomposition of nonlinear classifiers. With the rise of attribution method research, there has emerged a pressing need to assess and evaluate their performance. Numerous metrics have been proposed, each assessing an individual property of attribution methods such as faithfulness, robustness, or localization. Unfortunately, no single metric is deemed optimal for every case, and researchers often use several metrics to test the quality of the attribution maps. In this work, we address the shortcomings of the current LRP formulations and introduce a novel method for determining the relevance of input neurons through layer-wise relevance propagation. Furthermore, we apply this approach to the recently developed Vision Transformer architecture and evaluate its performance against existing methods on two image classification datasets, namely ImageNet and PascalVOC. Our results clearly demonstrate the advantage of our proposed method. Furthermore, we discuss the insufficiencies of current evaluation metrics for attribution-based explainability and propose a new evaluation metric that combines the notions of faithfulness, robustness, and contrastiveness. We utilize this new metric to evaluate the performance of various attribution-based methods. Our code is available at:},
 journal = {ACM Trans. Intell. Syst. Technol.},
 month = {apr},
 articleno = {47},
