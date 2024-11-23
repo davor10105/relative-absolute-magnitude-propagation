@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 from torch import nn
 from enum import Enum
@@ -83,6 +84,9 @@ class GlobalEvaluationMetric:
 
             # obtain input x gradient map
             inputxgrad_activation = (masked_x_batch.grad.data * masked_x_batch.data).abs()
+            inputxgrad_activation = normalize_relevance(
+                relevance=inputxgrad_activation, normalization_type=NormalizationType.SUM_TO_ONE
+            )
 
             # save inputs, outputs and gradient activations
             save_x.append(masked_x_batch.detach().cpu())
@@ -100,6 +104,15 @@ class GlobalEvaluationMetric:
 
         return save_x, save_o, save_r
 
+    def _calculate_relevancy(
+        self, relevancy_method: RelevancyMethod, x: torch.tensor, y: Optional[torch.tensor] = None
+    ) -> torch.tensor:
+        # use only the positive, normalized part of relevancy
+        assert len(x.shape) == 4, "Relevance maps must be 4D (batch x channel x height x width)"
+        relevance = relevancy_method.relevancy(x=x, y=y)
+        relevance = normalize_relevance(relevance=relevance.relu(), normalization_type=NormalizationType.MAX_TO_ONE)
+        return relevance
+
     def run(
         self, relevancy_methods: dict[str, RelevancyMethod], model: nn.Module, dataset: Dataset, batch_size: int
     ) -> dict[str, dict[str, torch.tensor]]:
@@ -111,7 +124,7 @@ class GlobalEvaluationMetric:
             method_name: {"local_consistency": [], "contrastiveness": [], "gae": []}
             for method_name in relevancy_methods
         }
-        for x_batch, y_batch in gae_loader:
+        for x_batch, y_batch in tqdm(gae_loader):
             x_batch = x_batch.to(self.device)
             batch_size, _, height, width = x_batch.shape
 
@@ -119,8 +132,22 @@ class GlobalEvaluationMetric:
             with torch.no_grad():
                 o_batch = model(x_batch)
 
+            # combine to mosaic
+            x_batch_small = F.interpolate(x_batch, (height // 2, width // 2))
+            x_mosaic = self._create_mosaic(x_batch_small)
+
+            # infer mosaic predictions
+            with torch.no_grad():
+                o_mosaic = model(x_mosaic).detach().cpu()
+
             # choose positive examples and predictions from batch
-            mosaic_positive_indices = torch.randint(high=4, size=(num_mosaics,))
+            pred_batch = o_batch.max(-1)[1].detach().cpu()
+            expanded_o_mosaic = o_mosaic[:, None].repeat(1, 4, 1).reshape(batch_size, -1)
+            mosaic_prediction_distribution = (
+                expanded_o_mosaic[torch.arange(batch_size), pred_batch].reshape(num_mosaics, -1).softmax(-1)
+            )
+            # sample positives according to softmax weighting of classes inside mosaic
+            mosaic_positive_indices = torch.multinomial(mosaic_prediction_distribution, num_samples=1).flatten()
             positive_indices = mosaic_positive_indices + torch.arange(num_mosaics) * 4
             positive_x = x_batch[positive_indices]
             positive_y = o_batch.max(-1)[1][positive_indices]
@@ -151,14 +178,6 @@ class GlobalEvaluationMetric:
                 normalization_type=NormalizationType.MAX_TO_ONE,
             ).sign()
 
-            # combine to mosaic
-            x_batch_small = F.interpolate(x_batch, (height // 2, width // 2))
-            x_mosaic = self._create_mosaic(x_batch_small)
-
-            # infer mosaic predictions
-            with torch.no_grad():
-                o_mosaic = model(x_mosaic)
-
             # generate score map
             score_batch_small = torch.ones_like(x_batch_small)
             softmax_positive_batch = o_batch[positive_indices].softmax(-1)
@@ -173,13 +192,23 @@ class GlobalEvaluationMetric:
             )
             score_batch_small = score_batch_small * normalized_mosaic_softmax_scores.flatten()[:, None, None, None]
             score_mosaic = self._create_mosaic(score_batch_small).detach().cpu()
+            # resolve ambiguity of the center lines by assigning positive score
+            score_mosaic[:, :, height // 2 - 1 : height // 2 + 1, width // 2 - 1 : width // 2 + 1] = 1.0
 
             # calculate GAE for each method
             for method_name, relevancy_method in relevancy_methods.items():
                 # get positive relevance maps
-                relevance = relevancy_method.relevancy(x=positive_x, y=positive_y).relu().detach().cpu()
+                relevance = (
+                    self._calculate_relevancy(relevancy_method=relevancy_method, x=positive_x, y=positive_y)
+                    .detach()
+                    .cpu()
+                )
                 # get mosaic relevance map
-                mosaic_relevance = relevancy_method.relevancy(x=x_mosaic, y=positive_y).relu().detach().cpu()
+                mosaic_relevance = (
+                    self._calculate_relevancy(relevancy_method=relevancy_method, x=x_mosaic, y=positive_y)
+                    .detach()
+                    .cpu()
+                )
 
                 # calculate step-wise differences
                 relevance_diffs, output_diffs = [], []
@@ -188,10 +217,10 @@ class GlobalEvaluationMetric:
                     morf_x[1:], lerf_x[1:], morf_o[1:], lerf_o[1:]
                 ):
                     step_morf_r, step_lerf_r = (
-                        relevancy_method.relevancy(x=step_morf_x, y=positive_y).relu(),
-                        relevancy_method.relevancy(x=step_lerf_x, y=positive_y).relu(),
+                        self._calculate_relevancy(relevancy_method=relevancy_method, x=step_morf_x, y=positive_y),
+                        self._calculate_relevancy(relevancy_method=relevancy_method, x=step_lerf_x, y=positive_y),
                     )
-                    relevance_diff = self._dice_loss(relevance, step_lerf_r) - self._dice_loss(relevance, step_morf_r)
+                    relevance_diff = self._dice_loss(relevance, step_morf_r) - self._dice_loss(relevance, step_lerf_r)
                     output_diff = step_lerf_o / (initial_output + 1e-9) - step_morf_o / (initial_output + 1e-9)
                     relevance_diffs.append(relevance_diff)
                     output_diffs.append(output_diff)
@@ -199,10 +228,14 @@ class GlobalEvaluationMetric:
 
                 # calculate faithfulness
                 faithfulness = self._calculate_mask_overlap(relevance=relevance, mask=combined_impact_map)
-
+                # print(relevance.shape, combined_impact_map.shape)
+                # for r, cim in zip(relevance, combined_impact_map):
+                #     fig, axs = plt.subplots(1, 2)
+                #     axs[0].imshow(r.mean(0).detach().cpu())
+                #     axs[1].imshow(cim.mean(0).detach().cpu())
+                #     plt.show()
                 # calculate robustness
                 robustness = 1 - 2 * self._dice_loss(relevance_diffs, output_diffs)
-
                 # calculate local consistency
                 local_consistency = (faithfulness + robustness).relu() / 2
 

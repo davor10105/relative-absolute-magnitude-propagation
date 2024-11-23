@@ -31,6 +31,8 @@ class AbsLRPRelevancyMethod(RelevancyMethod):
             y = output.max(-1)[1]
         y = y.to(self.device)
 
+        # sglrp rule
+        # output_relevance = torch.autograd.grad(output.softmax(-1)[torch.arange(output.shape[0]), y].sum(), output)[0]
         # clrp rule to provide contrastive relevance maps
         output_relevance = torch.ones_like(output)
         positive_mask = F.one_hot(y, num_classes=output.shape[-1])
