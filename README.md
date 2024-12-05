@@ -97,7 +97,7 @@ Run the metric
 metric = GlobalEvaluationMetric()
 metric.run(
     relevancy_methods=relevancy_methods,
-    model=ramp_model,
+    model=base_model, # original model
     dataset=dataset,
     batch_size=16,
     )
